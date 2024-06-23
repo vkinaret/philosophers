@@ -6,70 +6,85 @@
 /*   By: vkinaret <vkinaret@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/03/21 14:43:34 by vkinaret          #+#    #+#             */
-/*   Updated: 2024/06/21 18:02:36 by vkinaret         ###   ########.fr       */
+/*   Updated: 2024/06/23 19:26:37 by vkinaret         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
 
-static void	create_threads(t_philo *p, t_data data, int i)
+static int	start_simulation(t_monitor *m, t_philo *p)
 {
-	pthread_mutex_lock(&data.thread_lock);
-	while (++i < data.num_of_philos)
+	int	i;
+
+	i = -1;
+	while (++i < m->num_of_philos)
 	{
 		if (pthread_create(&p[i].thread, NULL, routine, &p[i]) != 0)
 		{
+			m->status = 1;
 			while (--i >= 0)
 				pthread_join(p[i].thread, NULL);
-			destroy_all("Error creating thread.", data, 0);
-			return ;
+			return (destroy_all("Error creating thread.", m, 1));
 		}
-		data.threads_running++;
 	}
-	pthread_mutex_unlock(&data.thread_lock);
+	monitor(m);
+	i = -1;
+	while (++i < m->num_of_philos)
+		pthread_join(p[i].thread, NULL);
+	return (0);
 }
 
-static void	init_philos(t_philo *p, t_data data, int i)
+static int	init_philos(t_philo *p, t_monitor *m)
 {
-	while (++i < data.num_of_philos)
+	int	i;
+
+	i = -1;
+	while (++i < m->num_of_philos)
 	{
 		p[i].id = i + 1;
-		p[i].data = &data;
-		p[i].meals_eaten = 0;
-		p[i].last_meal = get_current_time();
-		p[i].start_time = get_current_time();
 		p[i].thread = 0;
-		p[i].r_fork = &data.forks[i];
+		p[i].last_meal = get_current_time();
+		p[i].meals_eaten = 0;
+		p[i].num_of_philos = &m->num_of_philos;
+		p[i].time_to_eat = &m->time_to_eat;
+		p[i].time_to_sleep = &m->time_to_sleep;
+		p[i].r_fork = &m->forks[i];
 		p[i].l_fork = NULL;
-		if (i < data.num_of_philos - 1)
-			p[i].l_fork = &data.forks[i + 1];
-		else if (i == data.num_of_philos - 1)
-			p[i].l_fork = &data.forks[0];
-		p[i].meal_lock = &data.meal_locks[i];
+		if (i < m->num_of_philos - 1)
+			p[i].l_fork = &m->forks[i + 1];
+		else if (i > 0 && i == m->num_of_philos - 1)
+			p[i].l_fork = &m->forks[0];
+		pthread_mutex_init(&p[i].meal_lock, NULL);
+		p[i].write_lock = &m->write_lock;
+		p[i].death_lock = &m->death_lock;
+		p[i].start_time = &m->start_time;
+		p[i].status = &m->status;
 	}
+	return (0);
 }
 
-static void	init_data(t_data *data, int argc, char **argv, int i)
+static int	init_monitor(t_monitor *m, int argc, char **argv)
 {
-	data->dead_flag = 0;
-	data->meal_count = 0;
-	data->threads_running = 0;
-	data->num_of_philos = ft_atoi(argv[1]);
-	data->time_to_die = ft_atoi(argv[2]);
-	data->time_to_eat = ft_atoi(argv[3]);
-	data->time_to_sleep = ft_atoi(argv[4]);
+	int	i;
+
+	i = -1;
+	m->status = 0;
+	m->start_time = get_current_time();
+	m->num_of_philos = ft_atoi(argv[1]);
+	m->time_to_die = ft_atoi(argv[2]);
+	m->time_to_eat = ft_atoi(argv[3]);
+	m->time_to_sleep = ft_atoi(argv[4]);
+	m->num_of_times_to_eat = 0;
 	if (argc == 6)
-		data->num_of_times_to_eat = ft_atoi(argv[5]);
-	else
-		data->num_of_times_to_eat = 0;
-	pthread_mutex_init(&data->write_lock, NULL);
-	pthread_mutex_init(&data->death_lock, NULL);
-	pthread_mutex_init(&data->thread_lock, NULL);
-	while (++i < data->num_of_philos)
-	{
-		pthread_mutex_init(&data->forks[i], NULL);
-		pthread_mutex_init(&data->meal_locks[i], NULL);
-	}
+		m->num_of_times_to_eat = ft_atoi(argv[5]);
+	pthread_mutex_init(&m->write_lock, NULL);
+	pthread_mutex_init(&m->death_lock, NULL);
+	m->forks = malloc(m->num_of_philos * sizeof(t_mtx));
+	if (!m->forks)
+		return (destroy_all("Failed to malloc forks.", m, 1));
+	while (++i < m->num_of_philos)
+		pthread_mutex_init(&m->forks[i], NULL);
+	return (0);
 }
 
 static int	parsing(int argc, char **argv, int i, int j)
@@ -89,7 +104,7 @@ static int	parsing(int argc, char **argv, int i, int j)
 				return (printf("Too many philosophers.\n"));
 			j++;
 		}
-		if (i == 1 && j == 3 && ft_atoi(argv[i]) > MAX_PHILO)
+		if (i == 1 && j == 3 && ft_atoi(argv[i]) > 200)
 			return (printf("Too many philosophers.\n"));
 		if (j == 10 && ft_strncmp(argv[i], "2147483647", 11) > 0)
 			return (printf("Value must be between 1 and INT_MAX.\n"));
@@ -101,20 +116,18 @@ static int	parsing(int argc, char **argv, int i, int j)
 
 int	main(int argc, char **argv)
 {
-	int		i;
-	t_data	data;
-	t_philo	p[MAX_PHILO];
+	t_monitor	m;
+	t_philo		*p;
 
 	if (parsing(argc, argv, 0, 0))
 		return (1);
-	init_data(&data, argc, argv, -1);
-	init_philos(p, data, -1);
-	create_threads(p, data, -1);
-	monitor(data, p, -1);
-	wait_threads(data);
-	i = data.num_of_philos;
-	while (--i >= 0)
-		pthread_join(p[i].thread, NULL);
-	destroy_all(NULL, data, -1);
-	return (0);
+	p = malloc(ft_atoi(argv[1]) * sizeof(t_philo));
+	if (!p)
+		return (printf("Failed to malloc philos.\n"));
+	m.philos = p;
+	if (init_monitor(&m, argc, argv) || init_philos(p, &m))
+		return (1);
+	if (start_simulation(&m, p))
+		return (1);
+	return (destroy_all(NULL, &m, 0));
 }

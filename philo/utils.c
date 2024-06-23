@@ -3,14 +3,40 @@
 /*                                                        :::      ::::::::   */
 /*   utils.c                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: vkinaret <vkinaret@student.hive.fi>        +#+  +:+       +#+        */
+/*   By: vkinaret <vkinaret@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/05/08 17:25:06 by vkinaret          #+#    #+#             */
-/*   Updated: 2024/05/08 17:25:19 by vkinaret         ###   ########.fr       */
+/*   Updated: 2024/06/23 17:36:29 by vkinaret         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
+
+int	destroy_all(char *msg, t_monitor *m, int exit_code)
+{
+	int	i;
+
+	i = -1;
+	if (msg)
+		printf("%s\n", msg);
+	pthread_mutex_destroy(&m->write_lock);
+	pthread_mutex_destroy(&m->death_lock);
+	if (m->forks)
+	{
+		i = -1;
+		while (++i < m->num_of_philos)
+			pthread_mutex_destroy(&m->forks[i]);
+		free(m->forks);
+	}
+	if (m->philos)
+	{
+		i = -1;
+		while (++i < m->num_of_philos)
+			pthread_mutex_destroy(&m->philos[i].meal_lock);
+		free(m->philos);
+	}
+	return (exit_code);
+}
 
 int	get_current_time(void)
 {
