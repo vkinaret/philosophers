@@ -3,33 +3,62 @@
 /*                                                        :::      ::::::::   */
 /*   monitor.c                                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: vkinaret <vkinaret@student.hive.fi>        +#+  +:+       +#+        */
+/*   By: vkinaret <vkinaret@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/06/14 13:09:51 by vkinaret          #+#    #+#             */
-/*   Updated: 2024/06/14 13:09:54 by vkinaret         ###   ########.fr       */
+/*   Updated: 2024/06/21 17:48:05 by vkinaret         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
 
-int	ft_unlock_and_lock(t_mtx *unlock, t_mtx *lock)
+void	destroy_all(char *msg, t_data data, int i)
 {
-	if (unlock)
-		pthread_mutex_unlock(unlock);
-	if (lock)
-		pthread_mutex_lock(lock);
+	if (msg)
+		printf("%s\n", msg);
+	pthread_mutex_destroy(&data.write_lock);
+	pthread_mutex_destroy(&data.thread_lock);
+	pthread_mutex_destroy(&data.death_lock);
+	while (++i < data.num_of_philos)
+	{
+		pthread_mutex_destroy(&data.meal_locks[i]);
+		pthread_mutex_destroy(&data.forks[i]);
+	}
+}
+
+static int	is_dead(t_data data, t_philo *p, int i)
+{
+	if (get_current_time() - p[i].last_meal > data.time_to_die)
+	{
+		pthread_mutex_unlock(p[i].meal_lock);
+		pthread_mutex_lock(&p->data->death_lock);
+		data.dead_flag = 1;
+		pthread_mutex_unlock(&p->data->death_lock);
+		pthread_mutex_lock(&p->data->write_lock);
+		printf("%d\t", get_current_time() - p->start_time);
+		printf("%d %s\n", p->id, "died");
+		pthread_mutex_unlock(&p->data->write_lock);
+		return (1);
+	}
 	return (0);
 }
 
-void	print_death(t_philo *philo, char *action)
+static int	ate_all(t_data data, t_philo *p, int i)
 {
-	pthread_mutex_lock(&philo->data->write_lock);
-	printf("%d\t", get_current_time() - philo->start_time);
-	printf("%d %s\n", philo->id, action);
-	pthread_mutex_unlock(&philo->data->write_lock);
+	if (!data.num_of_times_to_eat)
+		return (0);
+	if (data.meal_count == data.num_of_philos)
+	{
+		pthread_mutex_unlock(p[i].meal_lock);
+		pthread_mutex_lock(&p->data->death_lock);
+		data.dead_flag = 1;
+		pthread_mutex_unlock(&p->data->death_lock);
+		return (1);
+	}
+	return (0);
 }
 
-int	monitor(t_data data, t_philo *p, int i, int flag)
+int	monitor(t_data data, t_philo *p, int i)
 {
 	ft_usleep(1);
 	while (1)
@@ -37,25 +66,25 @@ int	monitor(t_data data, t_philo *p, int i, int flag)
 		i = -1;
 		while (++i < data.num_of_philos)
 		{
-			ft_unlock_and_lock(NULL, &p[i].meal_lock);
-			if (get_current_time() - p[i].last_meal >= data.time_to_die)
-			{
-				ft_unlock_and_lock(&p[i].meal_lock, &data.death_lock);
-				data.dead_flag = 1;
-				ft_unlock_and_lock(&data.death_lock, NULL);
-				print_death(&p[i], "died");
+			pthread_mutex_lock(p[i].meal_lock);
+			if (is_dead(data, p, i) == 1)
 				return (1);
-			}
-			if (flag && data.meal_count == data.num_of_philos)
-			{
-				ft_unlock_and_lock(&p[i].meal_lock, &data.death_lock);
-				data.dead_flag = 1;
-				ft_unlock_and_lock(&data.death_lock, NULL);
-				print_death(&p[i], "all philos ate");
+			if (ate_all(data, p, i) == 1)
 				return (1);
-			}
-			ft_unlock_and_lock(&p[i].meal_lock, NULL);
+			pthread_mutex_unlock(p[i].meal_lock);
 		}
 	}
 	return (0);
+}
+
+void wait_threads(t_data data)
+{
+	pthread_mutex_lock(&data.thread_lock);
+	while (data.threads_running)
+	{
+		pthread_mutex_unlock(&data.thread_lock);
+		ft_usleep(100);
+		pthread_mutex_lock(&data.thread_lock);
+	}
+	pthread_mutex_unlock(&data.thread_lock);
 }

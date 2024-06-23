@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   routine.c                                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: vkinaret <vkinaret@student.hive.fi>        +#+  +:+       +#+        */
+/*   By: vkinaret <vkinaret@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/06/09 12:38:47 by vkinaret          #+#    #+#             */
-/*   Updated: 2024/06/09 12:38:50 by vkinaret         ###   ########.fr       */
+/*   Updated: 2024/06/21 13:37:12 by vkinaret         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,10 +50,8 @@ void	*routine(void *ptr)
 		if (ft_eat(p) || ft_think(p) || ft_sleep(p))
 			break ;
 	}
-	printf("finished! thread count is %d\n", p->data->threads_running);
 	pthread_mutex_lock(&p->data->thread_lock);
 	p->data->threads_running -= 1;
-	printf("finished! thread count is %d\n", p->data->threads_running);
 	pthread_mutex_unlock(&p->data->thread_lock);
 	return (p);
 }

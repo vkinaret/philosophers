@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    Makefile                                           :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: vkinaret <vkinaret@student.hive.fi>        +#+  +:+       +#+         #
+#    By: vkinaret <vkinaret@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/03/21 14:22:07 by vkinaret          #+#    #+#              #
-#    Updated: 2024/03/21 14:22:09 by vkinaret         ###   ########.fr        #
+#    Updated: 2024/06/19 17:43:46 by vkinaret         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -21,7 +21,7 @@ ${NAME}: ${OFILES}
 	cc ${OFILES} -o ${NAME}
 
 ${OFILES}: ${CFILES}
-	cc ${FLAGS} -c ${CFILES} -I philo.h
+	cc ${FLAGS} -c ${CFILES}
 
 clean:
 	rm -f ${OFILES}
